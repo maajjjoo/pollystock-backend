@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Business {
+  id                 String      @id @default(uuid())
+  name               String
+  businessType       String
+  productType        String
+  defaultUnit        String
+  useCategories      Boolean     @default(false)
+  useProductCodes    Boolean     @default(false)
+  useMinStock        Boolean     @default(false)
+  minStock           Decimal?
+  useExpirationDates Boolean     @default(false)
+  theme              String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  attributes         Attribute[]
+  products           Product[]
+}
+
+model Attribute {
+  id          String   @id @default(uuid())
+  businessId  String
+  name        String
+  dataType    String   // TEXT, NUMBER, DATE, BOOLEAN, OPTIONS
+  isRequired  Boolean  @default(false)
+  options     String?  // JSON string
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+}
+
+model Product {
+  id                String   @id @default(uuid())
+  businessId        String
+  name              String
+  sku               String?
+  category          String?
+  basePrice         Decimal
+  stockQuantity     Decimal
+  imageUrl          String?
+  dynamicAttributes String   @default("{}") // JSON string
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  business          Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  movements         Movement[]
+
+  @@index([businessId])
+}
+
+model Movement {
+  id        String       @id @default(uuid())
+  productId String
+  type      String       // IN, OUT
+  quantity  Decimal
+  note      String?
+  date      DateTime     @default(now())
+
+  product   Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([productId])
+}

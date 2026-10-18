@@ -48,6 +48,20 @@ export const deleteProduct = async (businessId: string, id: string) => {
   });
 };
 
+export const sanitizeDynamicAttributes = (submittedAttributes: any, definitions: any[]): Record<string, any> => {
+  if (!submittedAttributes || typeof submittedAttributes !== 'object') {
+    return {};
+  }
+  const definitionIds = new Set(definitions.map(d => d.id));
+  const sanitized: Record<string, any> = {};
+  for (const [key, value] of Object.entries(submittedAttributes)) {
+    if (definitionIds.has(key)) {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+};
+
 export const validateDynamicAttributes = (submittedAttributes: any, definitions: any[]) => {
   if (!submittedAttributes || typeof submittedAttributes !== 'object') {
     return;
@@ -64,7 +78,8 @@ export const validateDynamicAttributes = (submittedAttributes: any, definitions:
   for (const key of Object.keys(submittedAttributes)) {
     const def = definitions.find(d => d.id === key);
     if (!def) {
-      throw new Error('Unknown attribute ID: ' + key);
+      // Skip unknown or deprecated attribute definitions
+      continue;
     }
 
     const value = submittedAttributes[key];
@@ -101,3 +116,4 @@ export const validateDynamicAttributes = (submittedAttributes: any, definitions:
     }
   }
 };
+

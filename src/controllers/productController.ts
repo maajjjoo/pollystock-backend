@@ -20,8 +20,9 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
     }));
 
     res.json({ success: true, data: parsedProducts });
-  } catch (error) {
-    res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: 'Error retrieving products' });
+  } catch (error: any) {
+    console.error('Error retrieving products:', error);
+    res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: error?.message || 'Error retrieving products' });
   }
 };
 
@@ -45,8 +46,9 @@ export const getProductById = async (req: Request, res: Response): Promise<void>
     };
 
     res.json({ success: true, data: parsedProduct });
-  } catch (error) {
-    res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: 'Error retrieving product' });
+  } catch (error: any) {
+    console.error('Error retrieving product:', error);
+    res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: error?.message || 'Error retrieving product' });
   }
 };
 
@@ -75,10 +77,12 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    if (dynamicAttributes) {
+    let sanitizedDynamicAttributes: Record<string, any> = {};
+    if (dynamicAttributes !== undefined) {
       const definitions = await businessService.getAttributes(business.id);
+      sanitizedDynamicAttributes = productService.sanitizeDynamicAttributes(dynamicAttributes, definitions);
       try {
-        productService.validateDynamicAttributes(dynamicAttributes, definitions);
+        productService.validateDynamicAttributes(sanitizedDynamicAttributes, definitions);
       } catch (err: any) {
         res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: err.message });
         return;
@@ -92,14 +96,15 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       sku: sku || null,
       category: category || null,
       imageUrl: imageUrl || null,
-      dynamicAttributes: dynamicAttributes ? JSON.stringify(dynamicAttributes) : '{}',
+      dynamicAttributes: JSON.stringify(sanitizedDynamicAttributes),
     };
 
     const newProduct = await productService.createProduct(business.id, productData);
     
     res.status(201).json({ success: true, data: { ...newProduct, dynamicAttributes: JSON.parse(newProduct.dynamicAttributes) } });
-  } catch (error) {
-    res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: 'Error creating product' });
+  } catch (error: any) {
+    console.error('Error creating product:', error);
+    res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: error?.message || 'Error creating product' });
   }
 };
 
@@ -134,10 +139,12 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    let sanitizedDynamicAttributes: Record<string, any> | undefined = undefined;
     if (dynamicAttributes !== undefined) {
       const definitions = await businessService.getAttributes(business.id);
+      sanitizedDynamicAttributes = productService.sanitizeDynamicAttributes(dynamicAttributes, definitions);
       try {
-        productService.validateDynamicAttributes(dynamicAttributes, definitions);
+        productService.validateDynamicAttributes(sanitizedDynamicAttributes, definitions);
       } catch (err: any) {
         res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: err.message });
         return;
@@ -151,13 +158,14 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     if (sku !== undefined) productData.sku = sku || null;
     if (category !== undefined) productData.category = category || null;
     if (imageUrl !== undefined) productData.imageUrl = imageUrl || null;
-    if (dynamicAttributes !== undefined) productData.dynamicAttributes = JSON.stringify(dynamicAttributes);
+    if (sanitizedDynamicAttributes !== undefined) productData.dynamicAttributes = JSON.stringify(sanitizedDynamicAttributes);
 
     const updatedProduct = await productService.updateProduct(business.id, req.params.id as string, productData);
     
     res.json({ success: true, data: { ...updatedProduct, dynamicAttributes: JSON.parse(updatedProduct.dynamicAttributes) } });
-  } catch (error) {
-    res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: 'Error updating product' });
+  } catch (error: any) {
+    console.error('Error updating product:', error);
+    res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: error?.message || 'Error updating product' });
   }
 };
 
@@ -189,7 +197,8 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
       }
       throw err;
     }
-  } catch (error) {
-    res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: 'Error deleting product' });
+  } catch (error: any) {
+    console.error('Error deleting product:', error);
+    res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: error?.message || 'Error deleting product' });
   }
 };

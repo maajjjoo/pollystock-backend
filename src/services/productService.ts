@@ -86,15 +86,32 @@ export const sanitizeDynamicAttributes = (submittedAttributes: any, definitions:
   return sanitized;
 };
 
-export const validateDynamicAttributes = (submittedAttributes: any, definitions: any[]) => {
+export const validateDynamicAttributes = (
+  submittedAttributes: any, 
+  definitions: any[],
+  existingAttributes?: Record<string, any>
+) => {
   if (!submittedAttributes || typeof submittedAttributes !== 'object') {
     return;
   }
 
   // 1. Check required attributes
   for (const def of definitions) {
-    if (def.isRequired && (submittedAttributes[def.id] === undefined || submittedAttributes[def.id] === null || String(submittedAttributes[def.id]).trim() === '')) {
-      throw new Error('Required attribute missing: ' + def.name);
+    if (def.isRequired) {
+      const submittedVal = submittedAttributes[def.id];
+      const isSubmittedEmpty = submittedVal === undefined || submittedVal === null || String(submittedVal).trim() === '';
+
+      if (isSubmittedEmpty) {
+        // If updating an existing product that originally lacked this attribute, do not block editing
+        if (existingAttributes) {
+          const hadValue = (existingAttributes[def.id] !== undefined && existingAttributes[def.id] !== null && String(existingAttributes[def.id]).trim() !== '') ||
+                           (existingAttributes[def.name] !== undefined && existingAttributes[def.name] !== null && String(existingAttributes[def.name]).trim() !== '');
+          if (!hadValue) {
+            continue;
+          }
+        }
+        throw new Error('Required attribute missing: ' + def.name);
+      }
     }
   }
 

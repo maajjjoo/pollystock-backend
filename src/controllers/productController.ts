@@ -143,8 +143,14 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     if (dynamicAttributes !== undefined) {
       const definitions = await businessService.getAttributes(business.id);
       sanitizedDynamicAttributes = productService.sanitizeDynamicAttributes(dynamicAttributes, definitions);
+      
+      let existingDynamicAttributes: Record<string, any> = {};
       try {
-        productService.validateDynamicAttributes(sanitizedDynamicAttributes, definitions);
+        existingDynamicAttributes = existingProduct.dynamicAttributes ? JSON.parse(existingProduct.dynamicAttributes) : {};
+      } catch {}
+
+      try {
+        productService.validateDynamicAttributes(sanitizedDynamicAttributes, definitions, existingDynamicAttributes);
       } catch (err: any) {
         res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: err.message });
         return;

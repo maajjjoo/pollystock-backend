@@ -48,15 +48,39 @@ export const deleteProduct = async (businessId: string, id: string) => {
   });
 };
 
+const parseOptionsList = (raw: any): string[] => {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map(String).map(s => s.trim()).filter(Boolean);
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed.map(String).map(s => s.trim()).filter(Boolean);
+      } catch {}
+    }
+    return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  return [];
+};
+
 export const sanitizeDynamicAttributes = (submittedAttributes: any, definitions: any[]): Record<string, any> => {
   if (!submittedAttributes || typeof submittedAttributes !== 'object') {
     return {};
   }
-  const definitionIds = new Set(definitions.map(d => d.id));
+  const defById = new Map<string, any>(definitions.map(d => [d.id, d]));
+  const defByName = new Map<string, any>(definitions.map(d => [d.name.toLowerCase().trim(), d]));
   const sanitized: Record<string, any> = {};
+
   for (const [key, value] of Object.entries(submittedAttributes)) {
-    if (definitionIds.has(key)) {
-      sanitized[key] = value;
+    const trimmedKey = key.trim();
+    let def = defById.get(trimmedKey);
+    if (!def) {
+      def = defByName.get(trimmedKey.toLowerCase());
+    }
+    if (def) {
+      sanitized[def.id] = value;
     }
   }
   return sanitized;
@@ -69,7 +93,7 @@ export const validateDynamicAttributes = (submittedAttributes: any, definitions:
 
   // 1. Check required attributes
   for (const def of definitions) {
-    if (def.isRequired && (submittedAttributes[def.id] === undefined || submittedAttributes[def.id] === null || submittedAttributes[def.id] === '')) {
+    if (def.isRequired && (submittedAttributes[def.id] === undefined || submittedAttributes[def.id] === null || String(submittedAttributes[def.id]).trim() === '')) {
       throw new Error('Required attribute missing: ' + def.name);
     }
   }
@@ -83,7 +107,7 @@ export const validateDynamicAttributes = (submittedAttributes: any, definitions:
     }
 
     const value = submittedAttributes[key];
-    if (value === undefined || value === null || value === '') {
+    if (value === undefined || value === null || String(value).trim() === '') {
       continue;
     }
 
@@ -95,7 +119,7 @@ export const validateDynamicAttributes = (submittedAttributes: any, definitions:
         if (isNaN(Number(value))) throw new Error('Attribute ' + def.name + ' must be a number');
         break;
       case 'DATE':
-        if (isNaN(Date.parse(value))) throw new Error('Attribute ' + def.name + ' must be a valid date');
+        if (isNaN(Date.parse(String(value)))) throw new Error('Attribute ' + def.name + ' must be a valid date');
         break;
       case 'BOOLEAN':
         if (typeof value !== 'boolean' && value !== 'true' && value !== 'false') {
@@ -103,11 +127,8 @@ export const validateDynamicAttributes = (submittedAttributes: any, definitions:
         }
         break;
       case 'OPTIONS':
-        let options = [];
-        try {
-          options = JSON.parse(def.options || '[]');
-        } catch(e) {}
-        if (!options.includes(value)) {
+        const options = parseOptionsList(def.options);
+        if (options.length > 0 && !options.includes(String(value).trim())) {
           throw new Error('Attribute ' + def.name + ' value ' + value + ' is not a valid option');
         }
         break;

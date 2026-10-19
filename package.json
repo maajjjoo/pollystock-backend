@@ -13,6 +13,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google/genai": "^2.30.0",
     "@prisma/client": "^5.22.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.6",

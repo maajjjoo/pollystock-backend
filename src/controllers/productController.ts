@@ -4,7 +4,7 @@ import * as businessService from '../services/businessService';
 
 export const getProducts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const business = await businessService.getBusiness();
+    const business = await businessService.getBusiness(req.userId!);
     if (!business) {
       res.status(404).json({ success: false, code: 'NO_BUSINESS', message: 'No business configured yet.' });
       return;
@@ -28,7 +28,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
 
 export const getProductById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const business = await businessService.getBusiness();
+    const business = await businessService.getBusiness(req.userId!);
     if (!business) {
       res.status(404).json({ success: false, code: 'NO_BUSINESS', message: 'No business configured yet.' });
       return;
@@ -54,7 +54,7 @@ export const getProductById = async (req: Request, res: Response): Promise<void>
 
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
   try {
-    const business = await businessService.getBusiness();
+    const business = await businessService.getBusiness(req.userId!);
     if (!business) {
       res.status(404).json({ success: false, code: 'NO_BUSINESS', message: 'No business configured yet.' });
       return;
@@ -110,7 +110,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
 
 export const updateProduct = async (req: Request, res: Response): Promise<void> => {
   try {
-    const business = await businessService.getBusiness();
+    const business = await businessService.getBusiness(req.userId!);
     if (!business) {
       res.status(404).json({ success: false, code: 'NO_BUSINESS', message: 'No business configured yet.' });
       return;
@@ -177,7 +177,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
 
 export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
   try {
-    const business = await businessService.getBusiness();
+    const business = await businessService.getBusiness(req.userId!);
     if (!business) {
       res.status(404).json({ success: false, code: 'NO_BUSINESS', message: 'No business configured yet.' });
       return;

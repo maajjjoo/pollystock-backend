@@ -4,7 +4,7 @@ import * as businessService from '../services/businessService';
 
 export const getMovements = async (req: Request, res: Response): Promise<void> => {
   try {
-    const business = await businessService.getBusiness();
+    const business = await businessService.getBusiness(req.userId!);
     if (!business) {
       res.status(404).json({ success: false, code: 'NO_BUSINESS', message: 'No business configured yet.' });
       return;
@@ -20,7 +20,7 @@ export const getMovements = async (req: Request, res: Response): Promise<void> =
 
 export const getMovementById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const business = await businessService.getBusiness();
+    const business = await businessService.getBusiness(req.userId!);
     if (!business) {
       res.status(404).json({ success: false, code: 'NO_BUSINESS', message: 'No business configured yet.' });
       return;
@@ -40,7 +40,7 @@ export const getMovementById = async (req: Request, res: Response): Promise<void
 
 export const createMovement = async (req: Request, res: Response): Promise<void> => {
   try {
-    const business = await businessService.getBusiness();
+    const business = await businessService.getBusiness(req.userId!);
     if (!business) {
       res.status(404).json({ success: false, code: 'NO_BUSINESS', message: 'No business configured yet.' });
       return;

@@ -3,7 +3,7 @@ import * as businessService from '../services/businessService';
 
 export const getBusiness = async (req: Request, res: Response): Promise<void> => {
   try {
-    const business = await businessService.getBusiness();
+    const business = await businessService.getBusiness(req.userId!);
     if (!business) {
       res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'No business configured yet.' });
       return;
@@ -41,7 +41,7 @@ export const upsertBusiness = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const business = await businessService.upsertBusiness(req.body);
+    const business = await businessService.upsertBusiness(req.userId!, req.body);
     res.json({ success: true, data: business });
   } catch (error) {
     res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: 'Error saving business' });
@@ -50,7 +50,7 @@ export const upsertBusiness = async (req: Request, res: Response): Promise<void>
 
 export const getAttributes = async (req: Request, res: Response): Promise<void> => {
   try {
-    const business = await businessService.getBusiness();
+    const business = await businessService.getBusiness(req.userId!);
     if (!business) {
       res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'No business configured yet.' });
       return;
@@ -64,7 +64,7 @@ export const getAttributes = async (req: Request, res: Response): Promise<void> 
 
 export const syncAttributes = async (req: Request, res: Response): Promise<void> => {
   try {
-    const business = await businessService.getBusiness();
+    const business = await businessService.getBusiness(req.userId!);
     if (!business) {
       res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'No business configured yet.' });
       return;

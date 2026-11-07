@@ -1,11 +1,18 @@
 import { Request, Response } from 'express';
 import { getInventoryAnalytics } from '../services/analyticsService';
+import * as businessService from '../services/businessService';
+
+/** El análisis siempre usa el negocio del usuario autenticado, nunca un id enviado por el cliente. */
+async function getUserBusinessId(req: Request): Promise<string> {
+  const business = await businessService.getBusiness(req.userId!);
+  if (!business) throw new Error('NO_BUSINESS');
+  return business.id;
+}
 import { generateInventoryInsights, generateChatResponse, AIError } from '../services/geminiService';
 
 export const getInsights = async (req: Request, res: Response): Promise<void> => {
   try {
-    const businessId = (req.query.businessId as string) || undefined;
-    const analytics = await getInventoryAnalytics(businessId);
+    const analytics = await getInventoryAnalytics(await getUserBusinessId(req));
 
     const result = await generateInventoryInsights(analytics);
 
@@ -29,11 +36,11 @@ export const getInsights = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    if (error?.message === 'NO_BUSINESS_FOUND') {
+    if (error?.message === 'NO_BUSINESS' || error?.message === 'NO_BUSINESS_FOUND') {
       res.status(404).json({
         success: false,
         code: 'NO_BUSINESS',
-        message: 'No hay un negocio configurado en el sistema todavía.',
+        message: 'Aún no has configurado tu negocio.',
       });
       return;
     }
@@ -49,7 +56,8 @@ export const getInsights = async (req: Request, res: Response): Promise<void> =>
 
 export const chat = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { message, businessId } = req.body || {};
+    const { message } = req.body || {};
+    console.log(`[AI Chat Request] user: "${req.userId}", message: "${message}"`);
 
     if (!message || typeof message !== 'string' || message.trim() === '') {
       res.status(400).json({
@@ -69,8 +77,9 @@ export const chat = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const analytics = await getInventoryAnalytics(businessId);
+    const analytics = await getInventoryAnalytics(await getUserBusinessId(req));
     const result = await generateChatResponse(message, analytics);
+    console.log(`[AI Chat Response] reply length: ${result.reply?.length}, reply preview: "${result.reply?.slice(0, 60)}..."`);
 
     res.json({
       success: true,
@@ -91,11 +100,11 @@ export const chat = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    if (error?.message === 'NO_BUSINESS_FOUND') {
+    if (error?.message === 'NO_BUSINESS' || error?.message === 'NO_BUSINESS_FOUND') {
       res.status(404).json({
         success: false,
         code: 'NO_BUSINESS',
-        message: 'No hay un negocio configurado en el sistema todavía.',
+        message: 'Aún no has configurado tu negocio.',
       });
       return;
     }

@@ -1,21 +1,39 @@
 import prisma from '../config/db';
 
-export const getBusiness = async () => {
-  return await prisma.business.findFirst();
+const EDITABLE_FIELDS = [
+  'name',
+  'businessType',
+  'productType',
+  'defaultUnit',
+  'useCategories',
+  'useProductCodes',
+  'useMinStock',
+  'minStock',
+  'useExpirationDates',
+  'theme',
+] as const;
+
+/** Solo copia los campos editables: nunca id, userId ni fechas enviados por el cliente. */
+const pickEditable = (data: any) => {
+  const out: Record<string, unknown> = {};
+  for (const key of EDITABLE_FIELDS) {
+    if (data?.[key] !== undefined) out[key] = data[key];
+  }
+  return out;
 };
 
-export const upsertBusiness = async (data: any) => {
-  const existing = await prisma.business.findFirst();
-  if (existing) {
-    return await prisma.business.update({
-      where: { id: existing.id },
-      data,
-    });
-  } else {
-    return await prisma.business.create({
-      data,
-    });
-  }
+/** Negocio del usuario autenticado (o null si aún no lo configuró). */
+export const getBusiness = async (userId: string) => {
+  return await prisma.business.findUnique({ where: { userId } });
+};
+
+export const upsertBusiness = async (userId: string, data: any) => {
+  const fields = pickEditable(data);
+  return await prisma.business.upsert({
+    where: { userId },
+    update: fields,
+    create: { ...(fields as any), userId },
+  });
 };
 
 export const getAttributes = async (businessId: string) => {
@@ -44,10 +62,15 @@ export const syncAttributes = async (businessId: string, attributesData: any[]) 
 
     const results = [];
     for (const attr of attributesData) {
-      if (attr.id) {
+      // Solo se actualiza si la característica pertenece a ESTE negocio;
+      // un id ajeno se trata como una característica nueva.
+      const owned = attr.id
+        ? await tx.attribute.findFirst({ where: { id: attr.id, businessId } })
+        : null;
+      if (owned) {
         // update
         const updated = await tx.attribute.update({
-          where: { id: attr.id },
+          where: { id: owned.id },
           data: {
             name: attr.name,
             dataType: attr.dataType,

@@ -9,6 +9,8 @@ datasource db {
 
 model Business {
   id                 String      @id @default(uuid())
+  userId             String?     @unique // dueño del negocio (una cuenta = un negocio)
+  user               User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   name               String
   businessType       String
   productType        String
@@ -71,4 +73,15 @@ model Movement {
   product   Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([productId])
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  business     Business?
 }

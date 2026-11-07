@@ -4,10 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node dist/server.js",
+    "start": "prisma migrate deploy && node dist/server.js",
     "dev": "nodemon src/server.ts",
-    "build": "tsc",
-    "postinstall": "prisma skills sync || exit 0"
+    "build": "prisma generate && tsc",
+    "postinstall": "prisma skills sync || exit 0",
+    "db:import-sqlite": "node scripts/import-sqlite.js"
   },
   "keywords": [],
   "author": "",
@@ -17,15 +18,18 @@
     "@prisma/client": "^5.22.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.6",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "prisma": "^5.22.0",
+    "typescript": "^6.0.3",
+    "@types/node": "^26.6.4",
+    "@types/express": "^5.0.6",
+    "@types/cors": "^2.8.19"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/node": "^26.6.4",
     "nodemon": "^3.1.14",
-    "prisma": "^5.22.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
+    "ts-node": "^10.9.2"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

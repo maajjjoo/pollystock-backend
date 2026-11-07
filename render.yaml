@@ -1,0 +1,21 @@
+# Blueprint de Render: crea el servidor web del backend de PollyStock.
+# Las variables marcadas con sync:false se completan en el panel de Render.
+services:
+  - type: web
+    name: pollystock-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        sync: false

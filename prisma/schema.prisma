@@ -9,12 +9,11 @@ datasource db {
 
 model Business {
   id                 String      @id @default(uuid())
-  userId             String?     @unique // dueño del negocio (una cuenta = un negocio)
-  user               User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   name               String
-  businessType       String
-  productType        String
-  defaultUnit        String
+  // Se completan en la configuración inicial ("" = aún sin configurar)
+  businessType       String      @default("")
+  productType        String      @default("")
+  defaultUnit        String      @default("Unidad")
   useCategories      Boolean     @default(false)
   useProductCodes    Boolean     @default(false)
   useMinStock        Boolean     @default(false)
@@ -26,6 +25,9 @@ model Business {
 
   attributes         Attribute[]
   products           Product[]
+
+  // Dueño del negocio: una cuenta administra un único negocio (1 a 1)
+  user               User?
 }
 
 model Attribute {
@@ -80,8 +82,9 @@ model User {
   name         String
   email        String   @unique
   passwordHash String
+  businessId   String   @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  business     Business?
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
 }

@@ -528,18 +528,16 @@ export function computeInventoryMetrics(
  * deterministic inventory analytics for the requested business.
  */
 export const getInventoryAnalytics = async (
-  businessId?: string,
+  businessId: string,
   options?: AnalyticsOptions
 ): Promise<InventoryAnalytics> => {
-  let targetBusiness: any = null;
-
-  if (businessId) {
-    targetBusiness = await prisma.business.findUnique({
-      where: { id: businessId },
-    });
-  } else {
-    targetBusiness = await prisma.business.findFirst();
+  // Siempre el negocio del usuario autenticado: sin id no se analiza ningún negocio.
+  if (!businessId) {
+    throw new Error('NO_BUSINESS');
   }
+  const targetBusiness: any = await prisma.business.findUnique({
+    where: { id: businessId },
+  });
 
   if (!targetBusiness) {
     throw new Error('NO_BUSINESS');

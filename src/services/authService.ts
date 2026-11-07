@@ -1,21 +1,27 @@
 import crypto from 'crypto';
 import { promisify } from 'util';
+import jwt from 'jsonwebtoken';
+import { Business } from '@prisma/client';
 import prisma from '../config/db';
 
 const scrypt = promisify(crypto.scrypt) as (password: string, salt: string, keylen: number) => Promise<Buffer>;
 
-const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 días
 const KEY_LENGTH = 64;
+export const TOKEN_TTL = '7d';
+export const TOKEN_ISSUER = 'pollystock-api';
+export const TOKEN_AUDIENCE = 'pollystock-app';
 
 function getSecret(): string {
   const secret = process.env.AUTH_SECRET;
   if (!secret || secret.length < 32) {
-    throw new Error('AUTH_SECRET no está configurado (mínimo 32 caracteres) en el archivo .env');
+    throw new Error('AUTH_SECRET no está configurado (mínimo 32 caracteres).');
   }
   return secret;
 }
 
-// ---------- Contraseñas (scrypt + salt aleatorio) ----------
+// ---------- Contraseñas ----------
+// scrypt (incluido en Node) con salt aleatorio de 16 bytes y comparación en tiempo constante.
+// Se conserva este formato para que las contraseñas ya registradas sigan siendo válidas.
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -31,77 +37,74 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return expected.length === derived.length && crypto.timingSafeEqual(expected, derived);
 }
 
-// ---------- Tokens firmados con HMAC-SHA256 ----------
-
-export interface TokenPayload {
-  sub: string;
-  exp: number;
-}
-
-const b64url = (input: Buffer | string) => Buffer.from(input).toString('base64url');
-
-function sign(data: string): string {
-  return crypto.createHmac('sha256', getSecret()).update(data).digest('base64url');
-}
+// ---------- JWT (HS256 firmado con AUTH_SECRET) ----------
 
 export function createToken(userId: string): string {
-  const payload: TokenPayload = { sub: userId, exp: Date.now() + TOKEN_TTL_MS };
-  const body = b64url(JSON.stringify(payload));
-  return `${body}.${sign(body)}`;
+  return jwt.sign({}, getSecret(), {
+    algorithm: 'HS256',
+    subject: userId,
+    expiresIn: TOKEN_TTL,
+    issuer: TOKEN_ISSUER,
+    audience: TOKEN_AUDIENCE,
+  });
 }
 
-export function verifyToken(token: string): TokenPayload | null {
-  const [body, signature] = token.split('.');
-  if (!body || !signature) return null;
-
-  const expected = Buffer.from(sign(body));
-  const received = Buffer.from(signature);
-  if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
-    return null;
-  }
-
+/** Devuelve el id del usuario si el token es válido y vigente; si no, null. */
+export function verifyToken(token: string): string | null {
   try {
-    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as TokenPayload;
-    if (typeof payload.sub !== 'string' || typeof payload.exp !== 'number' || payload.exp < Date.now()) {
-      return null;
-    }
-    return payload;
+    const payload = jwt.verify(token, getSecret(), {
+      algorithms: ['HS256'],
+      issuer: TOKEN_ISSUER,
+      audience: TOKEN_AUDIENCE,
+    });
+    return typeof payload === 'object' && typeof payload.sub === 'string' ? payload.sub : null;
   } catch {
     return null;
   }
 }
 
-// ---------- Usuarios ----------
+// ---------- Datos públicos (nunca incluyen passwordHash) ----------
 
-export type PublicUser = { id: string; name: string; email: string; createdAt: Date };
+export type PublicUser = { id: string; name: string; email: string; businessId: string; createdAt: Date };
+export type PublicBusiness = Business & { isConfigured: boolean };
 
-const toPublic = (u: { id: string; name: string; email: string; createdAt: Date }): PublicUser => ({
+export const toPublicUser = (u: { id: string; name: string; email: string; businessId: string; createdAt: Date }): PublicUser => ({
   id: u.id,
   name: u.name,
   email: u.email,
+  businessId: u.businessId,
   createdAt: u.createdAt,
 });
+
+/** El negocio está configurado cuando ya completó la configuración inicial. */
+export const toPublicBusiness = (b: Business): PublicBusiness => ({ ...b, isConfigured: b.businessType.trim() !== '' });
 
 export const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 export async function findUserByEmail(email: string) {
-  return prisma.user.findUnique({ where: { email: normalizeEmail(email) } });
+  return prisma.user.findUnique({ where: { email: normalizeEmail(email) }, include: { business: true } });
 }
 
-export async function findPublicUserById(id: string): Promise<PublicUser | null> {
-  const user = await prisma.user.findUnique({ where: { id } });
-  return user ? toPublic(user) : null;
+export async function findUserWithBusiness(id: string) {
+  return prisma.user.findUnique({ where: { id }, include: { business: true } });
 }
 
-export async function createUser(name: string, email: string, password: string): Promise<PublicUser> {
-  const user = await prisma.user.create({
-    data: {
-      name: name.trim(),
-      email: normalizeEmail(email),
-      passwordHash: await hashPassword(password),
-    },
+/**
+ * Crea el negocio y su cuenta en una misma transacción: si algo falla,
+ * no queda un usuario sin negocio ni un negocio sin usuario.
+ */
+export async function registerAccount(input: { name: string; email: string; password: string; businessName: string }) {
+  const passwordHash = await hashPassword(input.password);
+  return prisma.$transaction(async (tx) => {
+    const business = await tx.business.create({ data: { name: input.businessName.trim() } });
+    const user = await tx.user.create({
+      data: {
+        name: input.name.trim(),
+        email: normalizeEmail(input.email),
+        passwordHash,
+        businessId: business.id,
+      },
+    });
+    return { user, business };
   });
-  return toPublic(user);
 }
-
-export { toPublic };

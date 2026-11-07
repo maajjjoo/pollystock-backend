@@ -1,18 +1,32 @@
 import { Request, Response } from 'express';
 import { getInventoryAnalytics } from '../services/analyticsService';
-import * as businessService from '../services/businessService';
-
-/** El análisis siempre usa el negocio del usuario autenticado, nunca un id enviado por el cliente. */
-async function getUserBusinessId(req: Request): Promise<string> {
-  const business = await businessService.getBusiness(req.userId!);
-  if (!business) throw new Error('NO_BUSINESS');
-  return business.id;
-}
 import { generateInventoryInsights, generateChatResponse, AIError } from '../services/geminiService';
+import { isGeminiConfigured } from '../config/aiConfig';
+
+/**
+ * El análisis siempre usa el negocio del usuario autenticado (req.businessId, puesto por
+ * requireAuth desde la base de datos). Cualquier businessId enviado por el cliente se ignora.
+ */
+function getUserBusinessId(req: Request): string {
+  if (!req.businessId) throw new Error('NO_BUSINESS');
+  return req.businessId;
+}
+
+/** Falla rápido (503) si la IA no está configurada, antes de consultar la base de datos. */
+function assertAIConfigured() {
+  if (!isGeminiConfigured()) {
+    throw new AIError(
+      'El servicio de IA no está configurado. La variable de entorno GEMINI_API_KEY no ha sido configurada en el servidor.',
+      503,
+      'AI_NOT_CONFIGURED'
+    );
+  }
+}
 
 export const getInsights = async (req: Request, res: Response): Promise<void> => {
   try {
-    const analytics = await getInventoryAnalytics(await getUserBusinessId(req));
+    assertAIConfigured();
+    const analytics = await getInventoryAnalytics(getUserBusinessId(req));
 
     const result = await generateInventoryInsights(analytics);
 
@@ -77,7 +91,8 @@ export const chat = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const analytics = await getInventoryAnalytics(await getUserBusinessId(req));
+    assertAIConfigured();
+    const analytics = await getInventoryAnalytics(getUserBusinessId(req));
     const result = await generateChatResponse(message, analytics);
     console.log(`[AI Chat Response] reply length: ${result.reply?.length}, reply preview: "${result.reply?.slice(0, 60)}..."`);
 

@@ -1,11 +1,22 @@
 /**
- * Copia los datos de la base SQLite local (prisma/dev.db) a la base Postgres de DATABASE_URL.
- * Uso (una sola vez, con la base Postgres ya migrada):
+ * Copia los datos de la base SQLite anterior (prisma/dev.db) a la base Postgres de DATABASE_URL.
+ *
+ * Uso (una sola vez, con las migraciones de Postgres ya aplicadas):
  *   npm run db:import-sqlite
- * Es idempotente: si un registro ya existe (mismo id), lo deja como está.
+ *
+ * Seguridad de los datos:
+ * - Es idempotente: si un registro ya existe (mismo id), no se modifica ni se duplica.
+ * - Conserva ids, relaciones, fechas y hashes de contraseña (los usuarios siguen entrando
+ *   con su misma contraseña).
+ * - En SQLite el dueño estaba en Business.userId; en Postgres está en User.businessId.
+ *   El script traduce esa relación. Un usuario que no tenía negocio recibe uno
+ *   pendiente de configurar (igual que la migración 1_owner_on_user).
+ * - Los negocios sin dueño se importan tal cual y quedan sin cuenta asociada; ver
+ *   README de despliegue (asignar dueño) para vincularlos de forma segura.
  */
 require('dotenv').config();
 const path = require('path');
+const crypto = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
 const { PrismaClient } = require('@prisma/client');
 
@@ -30,17 +41,51 @@ async function insert(model, items, map) {
 
 (async () => {
   console.log('Origen:', SQLITE_PATH);
-  // Orden según las relaciones: usuarios → negocios → características/productos → movimientos
-  await insert('user', rows('User'), (u) => ({
-    id: u.id, name: u.name, email: u.email, passwordHash: u.passwordHash,
-    createdAt: date(u.createdAt), updatedAt: date(u.updatedAt),
+  const businesses = rows('Business');
+  const ownerOf = new Map(businesses.filter((b) => b.userId).map((b) => [b.userId, b.id]));
+
+  // 1) Negocios (sin dueño todavía: la relación vive en User.businessId)
+  await insert('business', businesses, (b) => ({
+    id: b.id,
+    name: b.name,
+    businessType: b.businessType ?? '',
+    productType: b.productType ?? '',
+    defaultUnit: b.defaultUnit ?? 'Unidad',
+    useCategories: bool(b.useCategories),
+    useProductCodes: bool(b.useProductCodes),
+    useMinStock: bool(b.useMinStock),
+    minStock: b.minStock,
+    useExpirationDates: bool(b.useExpirationDates),
+    theme: b.theme,
+    createdAt: date(b.createdAt),
+    updatedAt: date(b.updatedAt),
   }));
-  await insert('business', rows('Business'), (b) => ({
-    id: b.id, userId: b.userId, name: b.name, businessType: b.businessType, productType: b.productType,
-    defaultUnit: b.defaultUnit, useCategories: bool(b.useCategories), useProductCodes: bool(b.useProductCodes),
-    useMinStock: bool(b.useMinStock), minStock: b.minStock, useExpirationDates: bool(b.useExpirationDates),
-    theme: b.theme, createdAt: date(b.createdAt), updatedAt: date(b.updatedAt),
-  }));
+
+  // 2) Usuarios, cada uno con su negocio
+  let users = 0;
+  for (const u of rows('User')) {
+    if (await prisma.user.findUnique({ where: { id: u.id } })) continue;
+    let businessId = ownerOf.get(u.id);
+    if (!businessId) {
+      const pending = await prisma.business.create({ data: { id: crypto.randomUUID(), name: `Negocio de ${u.name}` } });
+      businessId = pending.id;
+    }
+    await prisma.user.create({
+      data: {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        passwordHash: u.passwordHash,
+        businessId,
+        createdAt: date(u.createdAt),
+        updatedAt: date(u.updatedAt),
+      },
+    });
+    users++;
+  }
+  console.log(`user: ${users} copiados`);
+
+  // 3) Inventario de cada negocio
   await insert('attribute', rows('Attribute'), (a) => ({
     id: a.id, businessId: a.businessId, name: a.name, dataType: a.dataType, isRequired: bool(a.isRequired),
     options: a.options, createdAt: date(a.createdAt), updatedAt: date(a.updatedAt),
@@ -53,6 +98,9 @@ async function insert(model, items, map) {
   await insert('movement', rows('Movement'), (m) => ({
     id: m.id, productId: m.productId, type: m.type, quantity: m.quantity, note: m.note, date: date(m.date),
   }));
+
+  const orphans = await prisma.business.count({ where: { user: null } });
+  if (orphans) console.log(`Aviso: ${orphans} negocio(s) sin cuenta asociada (ver "Asignar dueño").`);
   console.log('Listo.');
 })()
   .catch((e) => {

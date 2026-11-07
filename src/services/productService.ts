@@ -36,7 +36,7 @@ export const updateProduct = async (businessId: string, id: string, data: any) =
 export const deleteProduct = async (businessId: string, id: string) => {
   // Check for existing movements
   const movementsCount = await prisma.movement.count({
-    where: { productId: id },
+    where: { productId: id, product: { businessId } },
   });
 
   if (movementsCount > 0) {

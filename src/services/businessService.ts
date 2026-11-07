@@ -13,7 +13,7 @@ const EDITABLE_FIELDS = [
   'theme',
 ] as const;
 
-/** Solo copia los campos editables: nunca id, userId ni fechas enviados por el cliente. */
+/** Solo copia los campos editables: nunca id ni fechas enviados por el cliente. */
 const pickEditable = (data: any) => {
   const out: Record<string, unknown> = {};
   for (const key of EDITABLE_FIELDS) {
@@ -22,18 +22,14 @@ const pickEditable = (data: any) => {
   return out;
 };
 
-/** Negocio del usuario autenticado (o null si aún no lo configuró). */
-export const getBusiness = async (userId: string) => {
-  return await prisma.business.findUnique({ where: { userId } });
+/** Negocio del usuario autenticado (businessId viene del middleware, nunca del cliente). */
+export const getBusiness = async (businessId: string) => {
+  return await prisma.business.findUnique({ where: { id: businessId } });
 };
 
-export const upsertBusiness = async (userId: string, data: any) => {
-  const fields = pickEditable(data);
-  return await prisma.business.upsert({
-    where: { userId },
-    update: fields,
-    create: { ...(fields as any), userId },
-  });
+/** Actualiza el negocio del usuario. El negocio se crea en el registro, aquí solo se edita. */
+export const updateBusiness = async (businessId: string, data: any) => {
+  return await prisma.business.update({ where: { id: businessId }, data: pickEditable(data) });
 };
 
 export const getAttributes = async (businessId: string) => {

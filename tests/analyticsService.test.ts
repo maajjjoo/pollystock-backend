@@ -271,7 +271,10 @@ async function runTests() {
   // TEST 9: Integración en vivo con SQLite vía Prisma (Solo lectura)
   // ----------------------------------------------------
   console.log('\nTest 9: Integración con base de datos real SQLite vía Prisma (Solo lectura)');
-  const liveResult = await getInventoryAnalytics();
+  // El análisis exige un negocio concreto (nunca "el primero" de la base).
+  const liveBusiness = await prisma.business.findFirst();
+  if (!liveBusiness) throw new Error('La base de prueba no tiene negocios');
+  const liveResult = await getInventoryAnalytics(liveBusiness.id);
   assert(liveResult !== null && typeof liveResult === 'object', 'getInventoryAnalytics devuelve un objeto');
   assert(typeof liveResult.business.name === 'string', `Nombre de negocio cargado: "${liveResult.business.name}"`);
   assert(liveResult.stockSummary.totalProducts >= 0, `Total de productos en BD: ${liveResult.stockSummary.totalProducts}`);

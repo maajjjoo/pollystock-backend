@@ -3,7 +3,7 @@ import prisma from '../config/db';
 export const getProducts = async (businessId: string, search?: string) => {
   const whereClause: any = { businessId };
   if (search) {
-    whereClause.name = { contains: search };
+    whereClause.name = { contains: search, mode: 'insensitive' };
   }
   return await prisma.product.findMany({
     where: whereClause,

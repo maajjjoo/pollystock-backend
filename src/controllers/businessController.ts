@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import * as businessService from '../services/businessService';
+import { toPublicBusiness } from '../services/authService';
 
 export const getBusiness = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -8,7 +9,7 @@ export const getBusiness = async (req: Request, res: Response): Promise<void> =>
       res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'No business configured yet.' });
       return;
     }
-    res.json({ success: true, data: business });
+    res.json({ success: true, data: toPublicBusiness(business) });
   } catch (error) {
     res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: 'Error retrieving business' });
   }
@@ -42,7 +43,7 @@ export const upsertBusiness = async (req: Request, res: Response): Promise<void>
     }
 
     const business = await businessService.updateBusiness(req.businessId!, req.body);
-    res.json({ success: true, data: business });
+    res.json({ success: true, data: toPublicBusiness(business) });
   } catch (error) {
     res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: 'Error saving business' });
   }
